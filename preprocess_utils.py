@@ -87,19 +87,21 @@ def pad_text(tokenized_text, maxlen, pad_tkn):
         return tokenized_text[len(tokenized_text) - maxlen:]
 
 
-def load_data(csv_file, train_data=False):
+def load_data(csv_file):
     data = pd.read_csv(csv_file)
     data = data.fillna({'tweet_content': "nan"})
     return data
 
+def get_toxic_data(df):
+    return df[df['harassment']==1]
 
 def get_comments(df):
     comments = []
     for i, row in df.iterrows():
 
-        post = Comment(post_id=row[''],
+        post = Tweet(post_id=row[''],
                            tweet_content=row['tweet_content'],
-                           harrasment=row['harrasment'],
+                           harassment=row['harassment'],
                            indirectH=row['IndirectH'],
                            physicalH=row['PhysicalH'],
                            sexualH=row['SexualH'])

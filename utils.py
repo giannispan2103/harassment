@@ -1,4 +1,4 @@
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 import torch
 from torch.autograd import Variable
 from time import time
@@ -22,18 +22,20 @@ def set_seeds(seed):
 
 
 def train(model, train_batches, test_batches, optimizer,  criterion,
-                          weight_loss, epochs, init_patience, cuda=True):
+                           epochs, init_patience, cuda=True, metric='f1'):
     patience = init_patience
-    best_auc = 0.0
+    best_sc = 0.0
+    best_thr = 0.0
     for i in range(1, epochs + 1):
         start = time()
-        auc = run_epoch(model, train_batches, test_batches, optimizer,  criterion,
-                                        weight_loss, cuda)
+        eval_dict = run_epoch(model, train_batches, test_batches, optimizer,  criterion,
+                                         cuda, metric)
         end = time()
-        print('epoch %d, auc: %2.3f  Time: %d minutes, %d seconds'
-              % (i, 100 * auc, (end - start) / 60, (end - start) % 60))
-        if best_auc < auc:
-            best_auc = auc
+        print('epoch %d, score: %2.3f, thr: %2.3f  Time: %d minutes, %d seconds'
+              % (i, 100 * eval_dict['sc'], eval_dict['thr'], (end - start) / 60, (end - start) % 60))
+        if best_sc < eval_dict['sc']:
+            best_sc = eval_dict['sc']
+            best_thr = eval_dict['thr']
             patience = init_patience
             save_model(model)
             if i > 1:
@@ -42,10 +44,10 @@ def train(model, train_batches, test_batches, optimizer,  criterion,
             patience -= 1
         if patience == 0:
             break
-    return best_auc
+    return {'sc': best_sc, 'thr': best_thr}
 
 
-def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda):
+def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda, metric):
     model.train(True)
     perm = np.random.permutation(len(train_batches))
     for i in perm:
@@ -66,7 +68,7 @@ def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    return evaluate(model, test_batches, cuda)
+    return evaluate(model, test_batches, cuda, metric)
 
 
 def get_scores_and_labels(model, test_batches, cuda):
@@ -86,10 +88,33 @@ def get_scores_and_labels(model, test_batches, cuda):
     return labels_list, scores_list
 
 
-def evaluate(model, test_batches, cuda):
+def evaluate(model, test_batches, cuda, metric='auc'):
     model.train(False)
     labels_list, scores_list = get_scores_and_labels(model, test_batches, cuda)
-    return roc_auc_score(np.asarray(labels_list, dtype='float32'), np.asarray(scores_list, dtype='float32'))
+    if metric == 'auc':
+        return {'sc': roc_auc_score(np.asarray(labels_list, dtype='float32'),
+                                np.asarray(scores_list, dtype='float32')),'thr':None}
+    else:
+        return tune_threshold(np.asarray(labels_list, dtype='float32'),
+                                np.asarray(scores_list, dtype='float32'),metric)
+
+
+def tune_threshold(labels, scores, metric='accuracy'):
+    lower = 0.2
+    upper = 0.70
+    step = 0.01
+    best_sc = 0.0
+    best_thr = lower
+    for x in np.arange(lower, upper, step):
+        predictions = predict(scores, x)
+        if metric == 'accuracy':
+            sc = accuracy_score(labels, predictions)
+        else:
+            sc = f1_score(labels, predictions)
+        if sc > best_sc:
+            best_sc = sc
+            best_thr = x
+    return {'sc': best_sc, 'thr': best_thr}
 
 
 def get_scores_and_ids(model, test_batches, cuda):

@@ -3,7 +3,7 @@ import gc
 
 from preprocess_utils import get_indexed_text, pad_text, load_data, get_comments, \
     get_embeddings, get_embeddings_matrix, \
-    get_unique_tokens, create_final_dictionary
+    get_unique_tokens, create_final_dictionary, get_toxic_data
 from globals import TRAIN_DATA_PATH, TEST_DATA_PATH, PAD_TOKEN, UNK_TOKEN
 
 
@@ -55,6 +55,7 @@ def generate_data(embs_path,
 
     train_batches = create_batches(train_posts, w2i, max_len=maxlen, batch_size=batch_size)
     test_batches = create_batches(test_posts, w2i, max_len=maxlen, batch_size=batch_size)
+
 
 
     return {

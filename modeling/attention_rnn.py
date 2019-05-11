@@ -47,8 +47,8 @@ class AttentionRNN(Module):
                                                    dropout=top_mlp_dropout,
                                                    inner_activation=top_mlp_activation,
                                                    outer_activation=top_mlp_outer_activation)
-        self.last_state = AttendedState(att_mlp_layers, large_size, att_mlp_dropout, relu)
-        self.seq = SequentialModel([self.word_embedding_layer, self.cell, self.last_state, self.decision_layer])
+        self.state = AttendedState(att_mlp_layers, large_size, att_mlp_dropout, relu)
+        self.seq = SequentialModel([self.word_embedding_layer, self.cell, self.state, self.decision_layer])
         self.params = list(filter(lambda p: p.requires_grad, self.parameters()))
 
     def forward(self, x):

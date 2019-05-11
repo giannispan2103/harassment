@@ -687,6 +687,8 @@ class SequentialModel(Layer):
         self.layers.append(layer)
         self.__output_size = layer.get_output_size()
 
+
+
 class AttentionRNN(Module):
     def __init__(self, embeddings,
                  trainable_embeddings=True,
@@ -740,7 +742,7 @@ class AttentionRNN(Module):
         return out
 
 def run(cuda):
-    data = generate_data(embs_path=GLOVE_EMBEDDINGS_PATH, maxlen=50, batch_size=256)
+    data = generate_data(embs_path=GLOVE_EMBEDDINGS_PATH, maxlen=100, batch_size=64)
     emb_matrix = data['emb_matrix']
     train_batches = data['train_batches']
     test_batches = data['test_batches']

@@ -20,13 +20,10 @@ def allcaps(text):
 
 class Tweet(object):
 
-    def __init__(self, post_id, tweet_content,
-                 harrasment=None,
-                 indirectH=None,
-                 physicalH=None,
-                 sexualH=None ):
+    def __init__(self, post_id, tweet_content, harassment=None, indirectH=None,
+                 physicalH=None, sexualH=None ):
         self.post_id = post_id
-        self.target = harrasment
+        self.target = harassment
         self.indirectH = indirectH
         self.physicalH = physicalH
         self.sexualH = sexualH
