@@ -13,17 +13,11 @@ def get_embeddings(tokens, path=GLOVE_EMBEDDINGS_PATH):
                 values = line.strip().split(" ")
                 try:
                     tokens[values[0]]
-                    if len(values) == 301:
-                        coefs = np.asarray(values[1:], dtype='float32')
-                        embeddings_dict[values[0]] = coefs
+                    coefs = np.asarray(values[1:], dtype='float32')
+                    embeddings_dict[values[0]] = coefs
                 except KeyError:
                     pass
     return embeddings_dict
-
-
-def normalize(embeddings, m, s):
-    return (embeddings - m)/s
-
 
 def create_freq_vocabulary(tokenized_texts):
     token_dict = {}
@@ -37,7 +31,7 @@ def create_freq_vocabulary(tokenized_texts):
 
 
 def get_frequent_words(token_dict, min_freq):
-    return {x:None for x in token_dict if token_dict[x] >= min_freq}
+    return {x: None for x in token_dict if token_dict[x] >= min_freq}
 
 
 def get_unique_tokens(posts, min_freq):
@@ -90,21 +84,33 @@ def pad_text(tokenized_text, maxlen, pad_tkn):
 def load_data(csv_file):
     data = pd.read_csv(csv_file)
     data = data.fillna({'tweet_content': "nan"})
+    data['post_id'] = np.arange(len(data))
     return data
 
-def get_toxic_data(df):
-    return df[df['harassment']==1]
 
-def get_comments(df):
+def get_comments(df, is_train=True):
     comments = []
-    for i, row in df.iterrows():
+    if is_train:
+        for i, row in df.iterrows():
 
-        post = Tweet(post_id=row[''],
-                           tweet_content=row['tweet_content'],
-                           harassment=row['harassment'],
-                           indirectH=row['IndirectH'],
-                           physicalH=row['PhysicalH'],
-                           sexualH=row['SexualH'])
+            post = Tweet(post_id=row['post_id'],
+                         tweet_content=row['tweet_content'],
+                         harrasment=row['harassment'],
+                         indirectH=row['IndirectH'],
+                         physicalH=row['PhysicalH'],
+                         sexualH=row['SexualH'])
 
-        comments.append(post)
+            comments.append(post)
+    else:
+        for i, row in df.iterrows():
+            post = Tweet(post_id=row['post_id'],
+                         tweet_content=row['tweet_content'],
+                         harrasment=None,
+                         indirectH=None,
+                         physicalH=None,
+                         sexualH=None)
+            comments.append(post)
     return comments
+
+
+

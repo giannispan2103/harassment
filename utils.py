@@ -1,14 +1,13 @@
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+from sklearn.metrics import roc_auc_score
 import torch
 from torch.autograd import Variable
 from time import time
 import random
 import numpy as np
-import pandas as pd
 import os
+from preprocess import load_data
 
-
-from globals import SAMPLE_SUBMISSION, SUBMISSION_PATH
+from globals import SUBMISSION_PATH, TEST_DATA_PATH
 SEED = 1985
 
 
@@ -22,20 +21,18 @@ def set_seeds(seed):
 
 
 def train(model, train_batches, test_batches, optimizer,  criterion,
-                           epochs, init_patience, cuda=True, metric='f1'):
+                          epochs, init_patience, cuda=True):
     patience = init_patience
-    best_sc = 0.0
-    best_thr = 0.0
+    best_auc = 0.0
     for i in range(1, epochs + 1):
         start = time()
-        eval_dict = run_epoch(model, train_batches, test_batches, optimizer,  criterion,
-                                         cuda, metric)
+        auc = run_epoch(model, train_batches, test_batches, optimizer,  criterion,
+                                         cuda)
         end = time()
-        print('epoch %d, score: %2.3f, thr: %2.3f  Time: %d minutes, %d seconds'
-              % (i, 100 * eval_dict['sc'], eval_dict['thr'], (end - start) / 60, (end - start) % 60))
-        if best_sc < eval_dict['sc']:
-            best_sc = eval_dict['sc']
-            best_thr = eval_dict['thr']
+        print('epoch %d, auc: %2.3f  Time: %d minutes, %d seconds'
+              % (i, 100 * auc, (end - start) / 60, (end - start) % 60))
+        if best_auc < auc:
+            best_auc = auc
             patience = init_patience
             save_model(model)
             if i > 1:
@@ -44,15 +41,15 @@ def train(model, train_batches, test_batches, optimizer,  criterion,
             patience -= 1
         if patience == 0:
             break
-    return {'sc': best_sc, 'thr': best_thr}
+    return best_auc
 
 
-def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda, metric):
+def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda):
     model.train(True)
     perm = np.random.permutation(len(train_batches))
     for i in perm:
         batch = train_batches[i]
-        inner_perm = np.random.permutation(len(batch['label']))
+        inner_perm = np.random.permutation(len(batch['text']))
         data = []
         for inp in model.input_list:
             if cuda:
@@ -64,16 +61,18 @@ def run_epoch(model, train_batches, test_batches, optimizer, criterion, cuda, me
         else:
             aux = Variable(torch.from_numpy(batch['aux'][inner_perm]))
         outputs = model(*data)
-        loss = criterion(outputs, aux)
+        # loss = 0.20*criterion(outputs[:, 0], aux[:, 0])+0.2*criterion(outputs[:, 1], aux[:, 1])+0.4 * criterion(outputs[:,2], aux[:,2]) + 0.4 * criterion(outputs[:,3], aux[:,3])
+        loss = 0.5*criterion(outputs[:, 0], aux[:, 0])+0.5*(0.2*criterion(outputs[:, 1], aux[:, 1])+0.4 * criterion(outputs[:,2], aux[:,2]) + 0.4 * criterion(outputs[:,3], aux[:,3]))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    return evaluate(model, test_batches, cuda, metric)
+    return evaluate(model, test_batches, cuda)
 
 
 def get_scores_and_labels(model, test_batches, cuda):
-    scores_list = []
-    labels_list = []
+    har_scores_list, sex_scores_list, phy_scores_list, ind_scores_list = [], [], [], []
+    har_list, sex_list, phy_list, ind_list = [], [], [], []
+
     for batch in test_batches:
         data = []
         for inp in model.input_list:
@@ -81,44 +80,41 @@ def get_scores_and_labels(model, test_batches, cuda):
                 data.append(Variable(torch.from_numpy(batch[inp]).long().cuda()))
             else:
                 data.append(Variable(torch.from_numpy(batch[inp]).long()))
-        outputs = model(*data)[:, 0]
-        outputs = torch.sigmoid(outputs)
-        labels_list.extend(batch['target'].tolist())
-        scores_list.extend(outputs.data.view(-1).tolist())
-    return labels_list, scores_list
+        outputs = model(*data)
+        haras_scores, sex_scores, phy_scores, ind_scores =outputs[:, 0], outputs[:, 1], outputs[:, 2], outputs[:, 3]
+        haras_scores = torch.sigmoid(haras_scores)
+        sex_scores = torch.sigmoid(sex_scores)
+        phy_scores = torch.sigmoid(phy_scores)
+        ind_scores = torch.sigmoid(ind_scores)
+        har_list.extend(batch['target'].tolist())
+        ind_list.extend(batch['indirect'])
+        sex_list.extend(batch['sexual'])
+        phy_list.extend(batch['physical'])
+
+        har_scores_list.extend(haras_scores.data.view(-1).tolist())
+        ind_scores_list.extend(ind_scores.data.view(-1).tolist())
+        sex_scores_list.extend(sex_scores.data.view(-1).tolist())
+        phy_scores_list.extend(phy_scores.data.view(-1).tolist())
+    return {'scores': {'harassment': har_scores_list, 'sexual': sex_scores_list,
+                       'physical': phy_scores_list, 'indirect': ind_scores_list},
+            'labels': {'harassment': har_list, 'sexual': sex_list,
+                       'physical': phy_list, 'indirect': ind_list}}
 
 
-def evaluate(model, test_batches, cuda, metric='auc'):
+def evaluate(model, test_batches, cuda):
     model.train(False)
-    labels_list, scores_list = get_scores_and_labels(model, test_batches, cuda)
-    if metric == 'auc':
-        return {'sc': roc_auc_score(np.asarray(labels_list, dtype='float32'),
-                                np.asarray(scores_list, dtype='float32')),'thr':None}
-    else:
-        return tune_threshold(np.asarray(labels_list, dtype='float32'),
-                                np.asarray(scores_list, dtype='float32'),metric)
-
-
-def tune_threshold(labels, scores, metric='accuracy'):
-    lower = 0.2
-    upper = 0.70
-    step = 0.01
-    best_sc = 0.0
-    best_thr = lower
-    for x in np.arange(lower, upper, step):
-        predictions = predict(scores, x)
-        if metric == 'accuracy':
-            sc = accuracy_score(labels, predictions)
-        else:
-            sc = f1_score(labels, predictions)
-        if sc > best_sc:
-            best_sc = sc
-            best_thr = x
-    return {'sc': best_sc, 'thr': best_thr}
+    results = get_scores_and_labels(model, test_batches, cuda)
+    auc_scores = []
+    for k in results['scores']:
+        auc = roc_auc_score(np.asarray(results['labels'][k],  dtype='float32'),
+                            np.asarray(results['scores'][k], dtype='float32'))
+        print("{} - auc:{}".format(k, auc))
+        auc_scores.append(auc)
+    return np.mean(auc_scores)
 
 
 def get_scores_and_ids(model, test_batches, cuda):
-    scores_list = []
+    scores_list,  sexual_list, physical_list, indirect_list = [], [], [], []
     ids = []
     for batch in test_batches:
         data = []
@@ -127,11 +123,18 @@ def get_scores_and_ids(model, test_batches, cuda):
                 data.append(Variable(torch.from_numpy(batch[inp]).long().cuda()))
             else:
                 data.append(Variable(torch.from_numpy(batch[inp]).long()))
-        outputs = model(*data)[:, 0]
-        outputs = torch.sigmoid(outputs)
-        scores_list.extend(outputs.data.view(-1).tolist())
+        out = model(*data)
+        # outputs = model(*data)
+        harassment,  sexual, physical, indirect = out[:, 0], out[:, 1], out[:, 2], out[:, 3]
+        # outputs = torch.sigmoid(outputs)
+        scores_list.extend(torch.sigmoid(harassment).data.view(-1).tolist())
+        indirect_list.extend(torch.sigmoid(indirect).data.view(-1).tolist())
+        sexual_list.extend(torch.sigmoid(sexual).data.view(-1).tolist())
+        physical_list.extend(torch.sigmoid(physical).data.view(-1).tolist())
         ids.extend(batch['post_id'])
-    return scores_list, ids
+    return {'id': ids, 'harassment': scores_list, 'indirect': indirect_list,
+            'sexual': sexual_list, 'physical': physical_list}
+
 
 
 def predict(scores, thr):
@@ -147,49 +150,68 @@ def load_model(model):
     return model
 
 
-def generate_results_predictions(model, test_batches, cuda, threshold):
-    sc, ids = get_scores_and_ids(model, test_batches, cuda)
-    predictions = predict(sc, threshold)
-    predictions = [int(x) for x in predictions]
-    d = {i: s for i, s in zip(ids, predictions)}
-    return d
-
-
 def generate_results(model, test_batches, cuda):
-    sc, ids = get_scores_and_ids(model, test_batches, cuda)
-    d = {i: s for i, s in zip(ids, sc)}
-    return d
+    sc = get_scores_and_ids(model, test_batches, cuda)
+    d_harassment = {i: s for i, s in zip(sc['id'], sc['harassment'])}
+    d_sexual = {i: s for i, s in zip(sc['id'], sc['sexual'])}
+    d_indirect = {i: s for i, s in zip(sc['id'], sc['indirect'])}
+    d_physical = {i: s for i, s in zip(sc['id'], sc['physical'])}
+
+    return {'harassment': d_harassment, 'sexual': d_sexual, 'indirect': d_indirect, 'physical': d_physical}
 
 
-def generate_csv(dicts):
-    def final_score(idx):
+def generate_csv(dicts_h, dicts_i, dicts_p, dicts_s, thr=0.33):
+    def final_score(idx, dicts):
         c = 0
-        for d in dicts:
-            c += d[idx]
+        for di in dicts:
+            c += di[idx]
         return c / float(len(dicts))
 
-    df = pd.read_csv(SAMPLE_SUBMISSION)
-    df['prediction'] = df['id'].map(lambda x: final_score(x))
-    df.to_csv(SUBMISSION_PATH, index=False)
+    # df = pd.read_csv(SAMPLE_SUBMISSION)
+    df = load_data(TEST_DATA_PATH)
 
+    df['Harassment'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_h))
+    df['IndirectH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_i))
+    df['PhysicalH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_p))
+    df['SexualH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_s))
+    final_scores = {}
+    for i, d in df.iterrows():
+        final_scores[d['post_id']] = {}
+        if d['Harassment'] < thr:
+            final_scores[d['post_id']]['Harassment'] = 0
+            final_scores[d['post_id']]['IndirectH'] = 0
+            final_scores[d['post_id']]['PhysicalH'] = 0
+            final_scores[d['post_id']]['SexualH'] = 0
+        else:
+            if d['IndirectH'] > d['PhysicalH']:
+                if d['IndirectH'] > d['SexualH']:
+                    final_scores[d['post_id']]['Harassment'] = 1
+                    final_scores[d['post_id']]['IndirectH'] = 1
+                    final_scores[d['post_id']]['PhysicalH'] = 0
+                    final_scores[d['post_id']]['SexualH'] = 0
+                else:
+                    final_scores[d['post_id']]['Harassment'] = 1
+                    final_scores[d['post_id']]['IndirectH'] = 0
+                    final_scores[d['post_id']]['PhysicalH'] = 0
+                    final_scores[d['post_id']]['SexualH'] = 1
+            else:
+                if d['PhysicalH'] > d['SexualH']:
+                    final_scores[d['post_id']]['Harassment'] = 1
+                    final_scores[d['post_id']]['IndirectH'] = 0
+                    final_scores[d['post_id']]['PhysicalH'] = 1
+                    final_scores[d['post_id']]['SexualH'] = 0
+                else:
+                    final_scores[d['post_id']]['Harassment'] = 1
+                    final_scores[d['post_id']]['IndirectH'] = 0
+                    final_scores[d['post_id']]['PhysicalH'] = 0
+                    final_scores[d['post_id']]['SexualH'] = 1
 
-def softmax(x):
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
+    df['Harassment'] = df['post_id'].map(lambda x: final_scores[x]["Harassment"])
+    df['IndirectH'] = df['post_id'].map(lambda x: final_scores[x]["IndirectH"])
+    df['PhysicalH'] = df['post_id'].map(lambda x: final_scores[x]["PhysicalH"])
+    df['SexualH'] = df['post_id'].map(lambda x: final_scores[x]["SexualH"])
 
-
-def generate_wheigthed_csv(dicts, scores, low):
-    s = sum(scores) - low * len(scores)
-    weights = list(map(lambda x: (x - low) / s, scores))
-
-    def final_score(idx):
-        c = 0
-        for w, d in zip(weights, dicts):
-            c += w * d[idx]
-        return int(c > 0.5)
-
-    df = pd.read_csv(SAMPLE_SUBMISSION)
-    df['prediction'] = df['id'].map(lambda x: final_score(x))
+    df = df.drop("post_id", axis=1)
     df.to_csv(SUBMISSION_PATH, index=False)
 
 
