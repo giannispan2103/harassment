@@ -40,7 +40,7 @@ class Tweet(object):
         else:
             if self.indirectH == 1:
                 return 1
-            elif self.sexualH == 2:
+            elif self.sexualH == 1:
                 return 2
             else:
                 return 3

@@ -7,7 +7,7 @@ import numpy as np
 import os
 from preprocess import load_data
 
-from globals import SUBMISSION_PATH, TEST_DATA_PATH
+from globals import SUBMISSION_PATH, TEST_DATA_PATH, MODELS_DIR
 SEED = 1985
 
 
@@ -142,11 +142,11 @@ def predict(scores, thr):
 
 
 def save_model(model):
-    torch.save(model.state_dict(), model.name + '.pkl')
+    torch.save(model.state_dict(), MODELS_DIR + model.name + '.pkl')
 
 
 def load_model(model):
-    model.load_state_dict(torch.load(model.name + '.pkl'))
+    model.load_state_dict(torch.load(MODELS_DIR + model.name + '.pkl'))
     return model
 
 
@@ -160,20 +160,16 @@ def generate_results(model, test_batches, cuda):
     return {'harassment': d_harassment, 'sexual': d_sexual, 'indirect': d_indirect, 'physical': d_physical}
 
 
-def generate_csv(dicts_h, dicts_i, dicts_p, dicts_s, thr=0.33):
-    def final_score(idx, dicts):
-        c = 0
-        for di in dicts:
-            c += di[idx]
-        return c / float(len(dicts))
+def generate_test_submission_values(harassment_dict, indirect_dict, physical_dict, sexual_dict, thr=0.33):
+    def final_score(idx, dict_of_values):
+        return dict_of_values[idx]
 
-    # df = pd.read_csv(SAMPLE_SUBMISSION)
     df = load_data(TEST_DATA_PATH)
 
-    df['Harassment'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_h))
-    df['IndirectH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_i))
-    df['PhysicalH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_p))
-    df['SexualH'] = df['post_id'].map(lambda x: final_score(x, dicts=dicts_s))
+    df['Harassment'] = df['post_id'].map(lambda x: final_score(x, dict_of_values=harassment_dict))
+    df['IndirectH'] = df['post_id'].map(lambda x: final_score(x, dict_of_values=indirect_dict))
+    df['PhysicalH'] = df['post_id'].map(lambda x: final_score(x, dict_of_values=physical_dict))
+    df['SexualH'] = df['post_id'].map(lambda x: final_score(x, dict_of_values=sexual_dict))
     final_scores = {}
     for i, d in df.iterrows():
         final_scores[d['post_id']] = {}
@@ -213,8 +209,7 @@ def generate_csv(dicts_h, dicts_i, dicts_p, dicts_s, thr=0.33):
 
     df = df.drop("post_id", axis=1)
     df.to_csv(SUBMISSION_PATH, index=False)
-
-
+    return df
 
 
 
