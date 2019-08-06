@@ -1,4 +1,3 @@
-import regex as re
 import preprocessor as tweet_preprocessor
 
 class Tweet(object):

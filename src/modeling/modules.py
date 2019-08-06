@@ -1,5 +1,5 @@
-from torch.nn import Module, Embedding, GRU, LSTM, Linear, ModuleList, Dropout, \
-    Dropout2d, Softmax, BCEWithLogitsLoss
+from torch.nn import Module, Embedding, GRU, LSTM, Linear, ModuleList, Dropout, Dropout2d
+from torch.nn.functional import softmax
 import torch
 
 
@@ -196,12 +196,11 @@ class AttendedState(Layer):
                                         outer_activation=inner_activation)
 
         self.attention = Linear(hidden_size, 1)
-        self.at_softmax = Softmax()
 
     def forward(self, x):
         states_mlp = self.mlp(x)
         att_sc_dist = self.attention(states_mlp).squeeze(-1)
-        att_weights = self.at_softmax(att_sc_dist).unsqueeze(2)
+        att_weights = softmax(att_sc_dist, dim=1).unsqueeze(2)
         out_attended = torch.sum(torch.mul(att_weights, x), dim=1)
         return out_attended
 

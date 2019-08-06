@@ -1,6 +1,5 @@
 from globals import GLOVE_EMBEDDINGS_PATH
 from encapsulations import Tweet
-
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -18,6 +17,7 @@ def get_embeddings(tokens, path=GLOVE_EMBEDDINGS_PATH):
                 except KeyError:
                     pass
     return embeddings_dict
+
 
 def create_freq_vocabulary(tokenized_texts):
     token_dict = {}
@@ -47,7 +47,6 @@ def create_final_dictionary(freq_words, embeddings_dict, unk_token, pad_token):
     words = list(set(freq_words).intersection(embeddings_dict.keys()))
     print("embedded tokens: %d" % (len(words)))
     words = [pad_token, unk_token] + words
-    print("ok final dict")
     return {w: i for i, w in enumerate(words)}
 
 
@@ -59,7 +58,6 @@ def get_embeddings_matrix(word_dict, embeddings_dict, size):
         except KeyError:
             print('no embedding for: ', word)
     embs[1] = np.mean(embs[2:])
-    print("ok emb matrix")
     return embs
 
 

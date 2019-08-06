@@ -1,6 +1,7 @@
 from torch.nn import Module
 import torch
-from torch.nn.functional import relu, tanh
+from torch.nn.functional import relu
+from torch import  tanh
 from .modules import PretrainedEmbeddingLayer, CellLayer, MultiLayerPerceptron, AttendedState, SequentialModel, LastState
 
 

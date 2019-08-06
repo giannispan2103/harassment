@@ -58,16 +58,12 @@ def generate_data(embs_path,
     df_val = load_data(VALID_DATA_PATH)
     df_test = load_data(TEST_DATA_PATH)
     train_posts = get_comments(df)
-    train_physical_labeled = list(filter(lambda x: x.physicalH == 1, train_posts))
-    print("physical:::", len(train_physical_labeled))
-    train_indirect_labeled = list(filter(lambda x: x.indirectH == 1, train_posts))
-    print("indirect:::", len(train_indirect_labeled))
 
     translated_posts_de = get_comments(load_data(TRANSLATED_DE_PATH))
     train_posts += translated_posts_de
     translated_posts_gr = get_comments(load_data(TRANSLATED_GR_PATH))
     train_posts += translated_posts_gr
-    translated_posts_fr = get_comments(load_data(TRANSLATED_DE_PATH))
+    translated_posts_fr = get_comments(load_data(TRANSLATED_FR_PATH))
     train_posts += translated_posts_fr
 
     val_posts = get_comments(df_val)
@@ -88,9 +84,9 @@ def generate_data(embs_path,
     val_batches = create_batches(val_posts, w2i, max_len=maxlen, batch_size=batch_size)
     test_batches = create_batches(test_posts, w2i, max_len=maxlen, batch_size=batch_size)
 
-    return {
-            'emb_matrix': emb_matrix,
+    return {'emb_matrix': emb_matrix,
             'train_batches': train_batches,
             'test_batches': test_batches,
-        'val_batches': val_batches, 'val_labels:': val_label_dict}
+            'val_batches': val_batches,
+            'val_labels:': val_label_dict}
 

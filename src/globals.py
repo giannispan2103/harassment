@@ -1,8 +1,7 @@
 # global variables
 PAD_TOKEN = "*$*PAD*$*"
 UNK_TOKEN = "*$*UNK*$*"
-MAXLEN = 300
-BATCH_SIZE = 512
+
 SEED = 1985
 MODELS_DIR = "models/"
 DATA_DIR = "data/"
@@ -15,3 +14,13 @@ TRANSLATED_DE_PATH ="data/translations-de.csv"
 TRANSLATED_FR_PATH = "data/translations-fr.csv"
 TRANSLATED_GR_PATH = "data/translations-el.csv"
 SUBMISSION_PATH = 'data/submission.csv'
+
+CONFIG= {'lr':0.001,
+         'dropout':0.3,
+         'epochs':20,
+         'patience':10,
+         'batch_size':32,
+         'maxlen': 100,
+         'trainable_embeddings':False,
+         'iterations': 10
+         }
