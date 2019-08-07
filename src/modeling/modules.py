@@ -101,7 +101,7 @@ class CellLayer(Layer):
         return self.__input_size
 
 
-class MultiLayerPerceptron(Layer):
+class MLP(Layer):
     def __init__(self, num_of_layers, init_size, out_size, dropout=0.0, inner_activation=None, outer_activation=None):
         """
         :param num_of_layers: the total number of layers
@@ -110,7 +110,7 @@ class MultiLayerPerceptron(Layer):
         :param inner_activation: the activation function for the inner layers
         :param outer_activation: the activation function for the outer layers
         """
-        super(MultiLayerPerceptron, self).__init__()
+        super(MLP, self).__init__()
         self.num_of_layers = num_of_layers
         self.__input_size = init_size
         self.__output_size = out_size
@@ -189,11 +189,11 @@ class AttendedState(Layer):
         super(AttendedState, self).__init__()
         self.__input_size = hidden_size
         self.__output_size = hidden_size
-        self.mlp = MultiLayerPerceptron(num_of_layers=num_of_layers,
-                                        init_size=hidden_size, out_size=hidden_size,
-                                        dropout=dropout,
-                                        inner_activation=inner_activation,
-                                        outer_activation=inner_activation)
+        self.mlp = MLP(num_of_layers=num_of_layers,
+                       init_size=hidden_size, out_size=hidden_size,
+                       dropout=dropout,
+                       inner_activation=inner_activation,
+                       outer_activation=inner_activation)
 
         self.attention = Linear(hidden_size, 1)
 

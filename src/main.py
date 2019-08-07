@@ -1,4 +1,4 @@
-from globals import GLOVE_EMBEDDINGS_PATH, SEED, MODELS_DIR, TEST_RESULTS, DATA_DIR, CONFIG
+from globals import GLOVE_EMBEDDINGS_PATH, SEED, MODELS_DIR, TEST_RESULTS,  CONFIG, IMPLEMENTED_MODELS, RESULTS_DIR
 from torch.optim import Adam
 from torch.nn import BCEWithLogitsLoss
 from utils import train, load_model, generate_test_submission_values, generate_results, set_seeds
@@ -8,19 +8,22 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 from preprocess import generate_data
 from modeling.multiheaded_attention_rnn import MultiHeadedAttentionRNN
 from modeling.projected_multiheaded_attention_rnn import ProjectedMultiHeadedAttentionRNN
-from modeling.projected_mutliheaded_vanilla_rnn import ProjectedMultiHeadedVanillaRNN
+from modeling.projected_vanilla_rnn import ProjectedVanillaRNN
 from modeling.vanilla_rnn import VanillaRnn
+from modeling.attention_rnn import AttentionRNN
+from modeling.projected_attention import ProjectedAttentionRNN
 
 
-def run_model(mdl, cuda):
-    if mdl not in ['vanilla', 'vanilla_projected', 'attention', 'projected_attention']:
-        NotImplementedError("You must choose one of these: ['vanilla', 'vanilla_projected', 'attention', 'projected_attention']")
+def run_model(model_name, data_dict, cuda):
+    print("running ", model_name)
+    if model_name not in IMPLEMENTED_MODELS:
+        NotImplementedError("You must choose one of these:{}".format(IMPLEMENTED_MODELS))
     else:
-        data = generate_data(embs_path=GLOVE_EMBEDDINGS_PATH, maxlen=CONFIG['maxlen'], batch_size=CONFIG['batch_size'])
-        emb_matrix = data['emb_matrix']
-        train_batches = data['train_batches']
-        val_batches = data['val_batches']
-        test_batches = data['test_batches']
+
+        emb_matrix = data_dict['emb_matrix']
+        train_batches = data_dict['train_batches']
+        val_batches = data_dict['val_batches']
+        test_batches = data_dict['test_batches']
         set_seeds(SEED)
 
         harassment_f1_scores = []
@@ -40,21 +43,36 @@ def run_model(mdl, cuda):
         physical_precision_scores = []
         runs = CONFIG['iterations']
         for i in range(1, runs+1):
-            if mdl == "vanilla_projected":
-                model = ProjectedMultiHeadedVanillaRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
-            elif mdl == "attention":
-                model = MultiHeadedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'], trainable_embeddings=False)
-            elif mdl == "projected_attention":
+            if model_name == "vanilla_projected_last":
+                model = ProjectedVanillaRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
+            elif model_name == "vanilla_projected_avg":
+                model = ProjectedVanillaRNN(emb_matrix, avg_pooling=True, embeddings_dropout=CONFIG['dropout'])
+            elif model_name == "multiheaded_attention":
+                model = MultiHeadedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'],
+                                                trainable_embeddings=CONFIG['trainable_embeddings'])
+            elif model_name == "multiheaded_projected_attention":
                 model = ProjectedMultiHeadedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
+            elif model_name == "attention":
+                model = AttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'], trainable_embeddings=CONFIG['trainable_embeddings'])
+            elif model_name == "projected_attention":
+                model = ProjectedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
+            elif model_name == "vanilla_avg":
+                model = VanillaRnn(emb_matrix, avg_pooling=True,
+                                   embeddings_dropout=CONFIG['dropout'],
+                                   trainable_embeddings=CONFIG['trainable_embeddings'])
+
             else:
-                model = VanillaRnn(emb_matrix, embeddings_dropout=CONFIG['dropout'], trainable_embeddings=False)
+                model = VanillaRnn(emb_matrix, embeddings_dropout=CONFIG['dropout'],
+                                   trainable_embeddings=CONFIG['trainable_embeddings'])
             optimizer = Adam(model.params, CONFIG['lr'])
             criterion = BCEWithLogitsLoss()
             train(model=model, train_batches=train_batches, test_batches=val_batches,
                   optimizer=optimizer, criterion=criterion, epochs=CONFIG['epochs'], init_patience=CONFIG['patience'], cuda=cuda)
             model = load_model(model)
             d = generate_results(model, test_batches, cuda)
-            df = generate_test_submission_values(d['harassment'], d['sexual'], d['physical'], d['indirect'])
+            df = generate_test_submission_values(harassment_dict=d['harassment'],
+                                                 sexual_dict=d['sexual'], physical_dict=d['physical'],
+                                                 indirect_dict=d['indirect'])
             df_results = pd.read_csv(TEST_RESULTS)
             harassment_f1_scores.append(f1_score(df_results.harassment.values, df.Harassment.values))
             harassment_precision_scores.append(precision_score(df_results.harassment.values, df.Harassment.values))
@@ -81,19 +99,27 @@ def run_model(mdl, cuda):
                         'sexual_recall': sexual_recall_scores,
                         'sexual_precision': sexual_precision_scores,
                         'physical_f1_score': physical_f1_scores,
-                        'physical_recall':physical_recall_scores,
+                        'physical_recall': physical_recall_scores,
                         'physical_precision': physical_precision_scores
                         }
-        print("df...")
         df = pd.DataFrame.from_dict(results_dict)
-        print("save...")
-        df.to_csv(DATA_DIR+mdl+".csv", index=False)
+        df.to_csv(RESULTS_DIR + model_name + ".csv", index=False)
 
 if __name__ == "__main__":
     if not os.path.exists(MODELS_DIR):
         os.makedirs(MODELS_DIR)
-    run_model("vanilla", False)
-    run_model("vanilla_projected", False)
-    run_model("attention", False)
-    run_model("projected_attention", False)
+    if not os.path.exists(RESULTS_DIR):
+        os.makedirs(RESULTS_DIR)
+
+    data = generate_data(embs_path=GLOVE_EMBEDDINGS_PATH, maxlen=CONFIG['maxlen'], batch_size=CONFIG['batch_size'])
+    run_model("projected_attention", data, False)
+    # run_model("vanilla_last", data, False)
+    run_model("vanilla_projected_last", data, False)
+    # run_model("vanilla_avg", data, False)
+    run_model("vanilla_projected_avg", data, False)
+    # run_model("multiheaded_attention", data, False)
+    run_model("multiheaded_projected_attention", data, False)
+
+    # run_model("attention", data, False)
+
 
