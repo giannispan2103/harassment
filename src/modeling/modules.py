@@ -108,7 +108,7 @@ class MLP(Layer):
         :param init_size: unit size of hidden layers
         :param out_size: output size
         :param inner_activation: the activation function for the inner layers
-        :param outer_activation: the activation function for the outer layers
+        :param outer_activation: the activation function for the last layer
         """
         super(MLP, self).__init__()
         self.num_of_layers = num_of_layers
@@ -185,15 +185,15 @@ class MaxPoolingState(Layer):
 
 
 class AttendedState(Layer):
-    def __init__(self, num_of_layers, hidden_size, dropout=0.0, inner_activation=None):
+    def __init__(self, num_of_layers, hidden_size, dropout=0.0, activation=None):
         super(AttendedState, self).__init__()
         self.__input_size = hidden_size
         self.__output_size = hidden_size
         self.mlp = MLP(num_of_layers=num_of_layers,
                        init_size=hidden_size, out_size=hidden_size,
                        dropout=dropout,
-                       inner_activation=inner_activation,
-                       outer_activation=inner_activation)
+                       inner_activation=activation,
+                       outer_activation=activation)
 
         self.attention = Linear(hidden_size, 1)
 

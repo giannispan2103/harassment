@@ -6,8 +6,8 @@ import pandas as pd
 import os
 from sklearn.metrics import f1_score, precision_score, recall_score
 from preprocess import generate_data
-from modeling.multiheaded_attention_rnn import MultiHeadedAttentionRNN
-from modeling.projected_multiheaded_attention_rnn import ProjectedMultiHeadedAttentionRNN
+from modeling.multi_attention_rnn import MultiAttentionRNN
+from modeling.projected_multi_attention_rnn import ProjectedMultiAttentionRNN
 from modeling.projected_vanilla_rnn import ProjectedVanillaRNN
 from modeling.vanilla_rnn import VanillaRnn
 from modeling.attention_rnn import AttentionRNN
@@ -41,17 +41,19 @@ def run_model(model_name, data_dict, cuda):
         physical_f1_scores = []
         physical_recall_scores = []
         physical_precision_scores = []
+
         runs = CONFIG['iterations']
         for i in range(1, runs+1):
+            print("***** iteration: ", i)
             if model_name == "vanilla_projected_last":
                 model = ProjectedVanillaRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
             elif model_name == "vanilla_projected_avg":
                 model = ProjectedVanillaRNN(emb_matrix, avg_pooling=True, embeddings_dropout=CONFIG['dropout'])
-            elif model_name == "multiheaded_attention":
-                model = MultiHeadedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'],
-                                                trainable_embeddings=CONFIG['trainable_embeddings'])
-            elif model_name == "multiheaded_projected_attention":
-                model = ProjectedMultiHeadedAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
+            elif model_name == "multi_attention":
+                model = MultiAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'],
+                                          trainable_embeddings=CONFIG['trainable_embeddings'])
+            elif model_name == "multi_projected_attention":
+                model = ProjectedMultiAttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'])
             elif model_name == "attention":
                 model = AttentionRNN(emb_matrix, embeddings_dropout=CONFIG['dropout'], trainable_embeddings=CONFIG['trainable_embeddings'])
             elif model_name == "projected_attention":
@@ -89,7 +91,10 @@ def run_model(model_name, data_dict, cuda):
             physical_f1_scores.append(f1_score(df_results.PhysicalH.values, df.PhysicalH.values))
             physical_precision_scores.append(precision_score(df_results.PhysicalH.values, df.PhysicalH.values))
             physical_recall_scores.append(recall_score(df_results.PhysicalH.values, df.PhysicalH.values))
-        results_dict = {'harassment_f1_score': harassment_f1_scores,
+
+        results_dict = {
+                        'model': [model_name for _ in range(runs)],
+                        'harassment_f1_score': harassment_f1_scores,
                         'harassment_recall': harassment_recall_scores,
                         'harassment_precision': harassment_precision_scores,
                         'indirect_f1_score': indirect_f1_scores,
@@ -103,7 +108,10 @@ def run_model(model_name, data_dict, cuda):
                         'physical_precision': physical_precision_scores
                         }
         df = pd.DataFrame.from_dict(results_dict)
-        df.to_csv(RESULTS_DIR + model_name + ".csv", index=False)
+        if "results.csv" in os.listdir(RESULTS_DIR):
+            df_old = pd.read_csv(RESULTS_DIR+"results.csv")
+            df = pd.concat([df_old, df])
+        df.to_csv(RESULTS_DIR+"results.csv", index=False)
 
 if __name__ == "__main__":
     if not os.path.exists(MODELS_DIR):
@@ -112,14 +120,14 @@ if __name__ == "__main__":
         os.makedirs(RESULTS_DIR)
 
     data = generate_data(embs_path=GLOVE_EMBEDDINGS_PATH, maxlen=CONFIG['maxlen'], batch_size=CONFIG['batch_size'])
-    run_model("projected_attention", data, False)
-    # run_model("vanilla_last", data, False)
-    run_model("vanilla_projected_last", data, False)
-    # run_model("vanilla_avg", data, False)
-    run_model("vanilla_projected_avg", data, False)
-    # run_model("multiheaded_attention", data, False)
-    run_model("multiheaded_projected_attention", data, False)
 
-    # run_model("attention", data, False)
+    run_model("vanilla_last", data, False)
+    run_model("vanilla_projected_last", data, False)
+    run_model("vanilla_avg", data, False)
+    run_model("vanilla_projected_avg", data, False)
+    run_model("multi_attention", data, False)
+    run_model("multi_projected_attention", data, False)
+    run_model("projected_attention", data, False)
+    run_model("attention", data, False)
 
 

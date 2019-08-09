@@ -12,11 +12,11 @@ class AttentionRNN(Module):
                  stacked_layers=1,
                  bidirectional=False,
                  att_mlp_layers=1,
-                 att_mlp_dropout=0.3,
-                 top_mlp_layers=1,
+                 att_mlp_dropout=0.0,
+                 top_mlp_layers=2,
                  top_mlp_activation=relu,
                  top_mlp_outer_activation=None,
-                 top_mlp_dropout=0.3):
+                 top_mlp_dropout=0.0):
         super(AttentionRNN, self).__init__()
         self.input_list = ['text']
         self.name = "AttentionRNN"

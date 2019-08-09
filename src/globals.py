@@ -17,13 +17,13 @@ SUBMISSION_PATH = 'data/submission.csv'
 RESULTS_DIR = 'results/'
 IMPLEMENTED_MODELS = ['vanilla_last', 'vanilla_avg', 'vanilla_projected_last',
                       'vanilla_projected_avg', 'attention', 'projected_attention',
-                      'multiheaded_attention', 'multiheaded_projected_attention']
+                      'multi_attention', 'multi_projected_attention']
 CONFIG= {'lr': 0.001,
          'dropout': 0.3,
          'epochs': 20,
          'patience': 10,
          'batch_size': 32,
          'maxlen': 100,
-         'trainable_embeddings':False,
+         'trainable_embeddings': False,
          'iterations': 10
          }

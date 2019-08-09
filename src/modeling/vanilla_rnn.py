@@ -14,7 +14,7 @@ class VanillaRnn(Module):
                  top_mlp_layers=2,
                  top_mlp_activation=relu,
                  top_mlp_outer_activation=None,
-                 top_mlp_dropout=0.3):
+                 top_mlp_dropout=0.0):
 
         super(VanillaRnn, self).__init__()
         self.input_list = ['text']
